@@ -85,8 +85,6 @@ def get_youtube_comments(video_id, api_key, max_results=100):
 def process_korean_text(comments):
     okt = Okt()
     all_nouns = []
-    
-    # 💡 SyntaxError가 났던 불용어(stopwords) 리스트 선언을 한 줄로 안전하게 묶었습니다.
     stopwords = ['진짜', '보고', '영상', '이거', '완전', '대박', '유튜브', '구독', '좋아요', '인간', '사람', '생각', '때문', '댓글', '진짜로']
     
     for comment in comments:
@@ -100,4 +98,82 @@ def process_korean_text(comments):
 # ----------------- 사이드바 설정 -----------------
 st.sidebar.header("⚙️ 분석 설정 컨트롤러")
 video_url = st.sidebar.text_input("유튜브 영상 URL 입력:", placeholder="https://www.youtube.com/watch?v=...")
-max_comments = st.sidebar.slider("수집할 댓글 수", min_value=20, max_value=50
+
+# 💡 에러가 났던 슬라이더(slider) 괄호와 인자 값을 한 줄로 안전하게 수정했습니다.
+max_comments = st.sidebar.slider("수집할 댓글 수", min_value=20, max_value=500, value=100, step=20)
+
+# ----------------- 메인 로직 -----------------
+if video_url:
+    video_id = extract_video_id(video_url)
+    
+    if not video_id:
+        st.error("❌ 올바른 유튜브 URL 형식이 아닙니다. 다시 확인해주세요.")
+    elif not YOUTUBE_API_KEY:
+        st.warning("⚠️ 유튜브 API 키가 입력되지 않았습니다. 사이드바를 확인해주세요.")
+    else:
+        if st.sidebar.button("📊 심층 분석 시작", use_container_width=True):
+            with st.spinner("유튜브 서버에서 댓글을 수집하고 명사를 분석하는 중..."):
+                comments = get_youtube_comments(video_id, YOUTUBE_API_KEY, max_comments)
+                
+            if not comments:
+                st.warning("수집된 댓글이 없거나 API 키가 올바르지 않습니다.")
+            else:
+                st.success(f"✅ 성공적으로 {len(comments)}개의 댓글을 수집했습니다!")
+                
+                nouns_list = process_korean_text(comments)
+                word_counts = Counter(nouns_list)
+                
+                col1, col2 = st.columns([1, 1])
+                
+                with col1:
+                    st.subheader("🔤 빈도수 높은 TOP 15 키워드")
+                    if word_counts:
+                        df_words = pd.DataFrame(word_counts.most_common(15), columns=['키워드', '빈도수'])
+                        st.dataframe(df_words.set_index('키워드'), use_container_width=True)
+                    else:
+                        st.info("추출된 키워드가 없습니다.")
+                        
+                    st.subheader("💬 수집된 원본 댓글 (샘플)")
+                    st.dataframe(pd.DataFrame(comments, columns=['댓글 내용']).head(20), use_container_width=True)
+
+                with col2:
+                    st.subheader("☁️ 한글 워드 클라우드 (Word Cloud)")
+                    if word_counts:
+                        import platform
+                        system_platform = platform.system()
+                        
+                        if system_platform == 'Windows':
+                            font_path = 'malgun.ttf'
+                        elif system_platform == 'Darwin':
+                            font_path = '/System/Library/Fonts/Supplemental/AppleGothic.ttf'
+                        else:
+                            possible_fonts = [
+                                '/usr/share/fonts/truetype/nanum/NanumGothic.ttf',
+                                '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf',
+                                '/usr/share/fonts/fonts-go/Go-Regular.ttf'
+                            ]
+                            font_path = None
+                            for pf in possible_fonts:
+                                if os.path.exists(pf):
+                                    font_path = pf
+                                    break
+                        
+                        wc = WordCloud(
+                            font_path=font_path,
+                            background_color="white",
+                            width=800,
+                            height=600,
+                            max_words=100,
+                            colormap="inferno"
+                        )
+                        
+                        fig, ax = plt.subplots(figsize=(10, 8))
+                        wc.generate_from_frequencies(word_counts)
+                        ax.imshow(wc, interpolation='bilinear')
+                        ax.axis("off")
+                        
+                        st.pyplot(fig)
+                    else:
+                        st.info("워드클라우드를 생성할 키워드가 부족합니다.")
+else:
+    st.info("💡 왼쪽 사이드바에 유튜브 영상 주소를 입력하고 '심층 분석 시작' 버튼을 눌러주세요.")
