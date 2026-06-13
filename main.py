@@ -7,10 +7,8 @@ import re
 from collections import Counter
 import os
 
-# ⭐ [오류 해결 핵심] 스트림릿 클라우드(리눅스) 환경에서 자바(JVM) 경로를 강제로 지정합니다.
-# 이 코드는 konlpy를 import하기 전에 반드시 실행되어야 합니다.
+# 💡 [핵심] 스트림릿 클라우드(리눅스) 환경에서 자바(JVM) 경로 자동 매칭
 if not os.environ.get("JAVA_HOME"):
-    # 스트림릿 클라우드의 기본 자바 설치 경로를 탐색하여 등록합니다.
     possible_java_paths = [
         "/usr/lib/jvm/default-java",
         "/usr/lib/jvm/java-11-openjdk-amd64",
@@ -22,7 +20,7 @@ if not os.environ.get("JAVA_HOME"):
             os.environ["JAVA_HOME"] = path
             break
 
-# 자바 환경 변수 설정 후 KoNLPy를 안전하게 불러옵니다.
+# 자바 설정 후 KoNLPy 로드
 from konlpy.tag import Okt
 
 # 1. 페이지 설정
@@ -87,4 +85,19 @@ def get_youtube_comments(video_id, api_key, max_results=100):
 def process_korean_text(comments):
     okt = Okt()
     all_nouns = []
-    stopwords =
+    
+    # 💡 SyntaxError가 났던 불용어(stopwords) 리스트 선언을 한 줄로 안전하게 묶었습니다.
+    stopwords = ['진짜', '보고', '영상', '이거', '완전', '대박', '유튜브', '구독', '좋아요', '인간', '사람', '생각', '때문', '댓글', '진짜로']
+    
+    for comment in comments:
+        clean_comment = re.sub(r'[^가-힣a-zA-Z\s]', '', comment)
+        nouns = okt.nouns(clean_comment)
+        filtered_nouns = [n for n in nouns if len(n) > 1 and n not in stopwords]
+        all_nouns.extend(filtered_nouns)
+        
+    return all_nouns
+
+# ----------------- 사이드바 설정 -----------------
+st.sidebar.header("⚙️ 분석 설정 컨트롤러")
+video_url = st.sidebar.text_input("유튜브 영상 URL 입력:", placeholder="https://www.youtube.com/watch?v=...")
+max_comments = st.sidebar.slider("수집할 댓글 수", min_value=20, max_value=50
